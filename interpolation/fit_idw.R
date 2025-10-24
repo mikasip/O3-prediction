@@ -50,5 +50,5 @@ idw_predictions_test <- spatiotemporal_idw(
 
 mae_idw <- mean(abs(idw_predictions_test + data_test_seas - EEA_sub_test2_aux$mean_O3), na.rm = TRUE)
 rmse_idw <- sqrt(mean((idw_predictions_test + data_test_seas - EEA_sub_test2_aux$mean_O3)^2, na.rm = TRUE))
-mae_idw
-rmse_idw
+print(paste0("IDW MAE: ", mae_idw))
+print(paste0("IDW RMSE: ", rmse_idw))

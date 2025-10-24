@@ -35,8 +35,12 @@ arima_mae <- mean(abs((as.matrix(preds_arima[, "mean_O3"]) - EEA_sub_test[, "mea
 inds1 <- which(coords_time_test[, 3] < min(coords_time_test[, 3]) + 1)
 inds10 <- which(coords_time_test[, 3] < min(coords_time_test[, 3]) + 10)
 # MAE
-mean(abs((as.matrix(preds_arima[inds10, "mean_O3"]) - EEA_sub_test[inds10, "mean_O3"])), na.rm = TRUE)
-mean(abs((as.matrix(preds_arima[inds1, "mean_O3"]) - EEA_sub_test[inds1, "mean_O3"])), na.rm = TRUE)
+arima_mae1 <- mean(abs((as.matrix(preds_arima[inds10, "mean_O3"]) - EEA_sub_test[inds10, "mean_O3"])), na.rm = TRUE)
+arima_mae10 <- mean(abs((as.matrix(preds_arima[inds1, "mean_O3"]) - EEA_sub_test[inds1, "mean_O3"])), na.rm = TRUE)
 # RMSE
-sqrt(mean((as.matrix(preds_arima[inds10, "mean_O3"]) - EEA_sub_test[inds10, "mean_O3"])^2, na.rm = TRUE))
-sqrt(mean((as.matrix(preds_arima[inds1, "mean_O3"]) - EEA_sub_test[inds1, "mean_O3"])^2, na.rm = TRUE))
+arima_rmse1 <- sqrt(mean((as.matrix(preds_arima[inds10, "mean_O3"]) - EEA_sub_test[inds10, "mean_O3"])^2, na.rm = TRUE))
+arima_rmse10 <- sqrt(mean((as.matrix(preds_arima[inds1, "mean_O3"]) - EEA_sub_test[inds1, "mean_O3"])^2, na.rm = TRUE))
+print(paste0("ARIMA MAE (1-step-ahead): ", arima_mae1))
+print(paste0("ARIMA MAE (10-steps-ahead): ", arima_mae10))
+print(paste0("ARIMA RMSE (1-step-ahead): ", arima_rmse1))
+print(paste0("ARIMA RMSE (10-steps-ahead): ", arima_rmse10))

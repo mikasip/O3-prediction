@@ -4,19 +4,15 @@ library(NonlinearBSS)
 library(gstat)
 library(sp)
 library(spacetime)
-library(sf)
-library(covatest)
-library(dplyr)
-library(rdist)
 
-load("O3_prediction/data/EEA_sub_train_aux.RData")
-load("O3_prediction/data/EEA_sub_val_aux.RData")
-load("O3_prediction/data/EEA_sub_test.RData")
+load("data/EEA_sub_train_aux.RData")
+load("data/EEA_sub_val_aux.RData")
+load("data/EEA_sub_test.RData")
 val_names <- colnames(EEA_sub_val_aux)
 EEA_sub_train_aux <- EEA_sub_train_aux[, val_names]
 EEA_sub_train_aux <- rbind(EEA_sub_train_aux, EEA_sub_val_aux)
 data_all_cc <- EEA_sub_train_aux[, c("mean_O3", "mean_NO2", "mean_PM10", "t2m", "rh", "voc")]
-min_time <- min(as.Date(EEA_sub_train_aux$time)) #- 180 # Shift the time so that the last season in the training data and the test data align better.
+min_time <- min(as.Date(EEA_sub_train_aux$time))
 EEA_sub_train_aux$time_numeric <- as.numeric(as.Date(EEA_sub_train_aux$time) - min_time)
 
 coordinates_latlon <- SpatialPoints(cbind(EEA_sub_train_aux$Longitude, EEA_sub_train_aux$Latitude),
@@ -41,7 +37,7 @@ ivae_radial3 <- iVAEar_radial(
     ar_order = 4,
     spatial_basis = c(2, 9, 17, 37),
     temporal_basis = c(9, 17, 37),
-    aux_hidden_units = c(64),
+    aux_hidden_units = c(32),
     spatial_kernel = "wendland",
     n_s = n_s,
     epochs = 70,
@@ -78,10 +74,11 @@ min_time_test <- (min(EEA_sub_test2$time_numeric))
 step1_ahead_inds <- which(EEA_sub_test2$time_numeric == min_time_test)
 ivae_mae1 <- mean(abs((as.matrix(preds_ivae[step1_ahead_inds, 1]) - EEA_sub_test2[step1_ahead_inds, "mean_O3"])), na.rm = TRUE)
 ivae_rmse1 <- sqrt(mean((as.matrix(preds_ivae[step1_ahead_inds, 1]) - EEA_sub_test2[step1_ahead_inds, "mean_O3"])^2, na.rm = TRUE))
-ivae_mae1
-ivae_rmse1
+
 step10_ahead_inds <- which(EEA_sub_test2$time_numeric < (min(EEA_sub_test2$time_numeric) + 10))
 ivae_mae10 <- mean(abs((as.matrix(preds_ivae[step10_ahead_inds, 1]) - EEA_sub_test2[step10_ahead_inds, "mean_O3"])), na.rm = TRUE)
 ivae_rmse10 <- sqrt(mean((as.matrix(preds_ivae[step10_ahead_inds, 1]) - EEA_sub_test2[step10_ahead_inds, "mean_O3"])^2, na.rm = TRUE))
-ivae_mae10
-ivae_rmse10
+print(paste0("iVAE MAE (1-step-ahead): ", ivae_mae1))
+print(paste0("iVAE RMSE (1-step-ahead): ", ivae_rmse1))
+print(paste0("iVAE MAE (10-steps-ahead): ", ivae_mae10))
+print(paste0("iVAE RMSE (10-steps-ahead): ", ivae_rmse10))

@@ -157,7 +157,7 @@ stfdf_pred <- create_sti_dataset(temp_df_test, "mean_O3_res")
 pred_var_time <- krigeST(mean_O3_res ~ 1,
     data = stfdf_data,
     newdata = stfdf_pred, vg_obj$vgm_st, nmax = 200,
-    stAni = 10000 / 16,
+    stAni = 10000 / 8,
 )
 pred_var_df_time <- as.data.frame(pred_var_time)
 head(pred_var_df_time)
@@ -171,7 +171,8 @@ step10_ahead_inds <- which(temp_df_test$time_numeric < (min(temp_df_test$time_nu
 kriging_mae10 <- mean(abs((as.matrix(temp_df_test[step10_ahead_inds, "mean_O3_res"]) - pred_var_df_time[step10_ahead_inds, "var1.pred"])), na.rm = TRUE)
 kriging_rmse1 <- sqrt(mean((as.matrix(temp_df_test[step1_ahead_inds, "mean_O3_res"]) - pred_var_df_time[step1_ahead_inds, "var1.pred"])^2, na.rm = TRUE))
 kriging_rmse10 <- sqrt(mean((as.matrix(temp_df_test[step10_ahead_inds, "mean_O3_res"]) - pred_var_df_time[step10_ahead_inds, "var1.pred"])^2, na.rm = TRUE))
-kriging_mae1
-kriging_rmse1
-kriging_mae10
-kriging_rmse10
+print(paste0("Kriging MAE (1-step-ahead): ", kriging_mae1))
+print(paste0("Kriging RMSE (1-step-ahead): ", kriging_rmse1))
+print(paste0("Kriging MAE (10-steps-ahead): ", kriging_mae10))
+print(paste0("Kriging RMSE (10-steps-ahead): ", kriging_rmse10))
+# 6.86, 11.23

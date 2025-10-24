@@ -4,10 +4,6 @@ library(NonlinearBSS)
 library(gstat)
 library(sp)
 library(spacetime)
-library(sf)
-library(covatest)
-library(dplyr)
-library(rdist)
 
 load("data/EEA_sub_val.RData")
 load("data/EEA_sub_test.RData")
@@ -18,12 +14,12 @@ na_stations <- unique(EEA_sub_aux_interpolated$AirQualityStation[is.na(EEA_sub_a
 na_station_inds <- which(EEA_sub_aux_interpolated$AirQualityStation %in% na_stations)
 data_all_cc <- EEA_sub_aux_interpolated[-na_station_inds, c("mean_O3", "mean_NO2", "mean_PM10", "t2m", "rh", "voc")]
 coords_time_cc <- as.matrix(EEA_sub_aux_interpolated[-na_station_inds, c("X", "Y", "time_numeric")])
-min_time <- min(coords_time_cc[, 3]) - 180 # Shift the time so that the last season in the training data and the test data align better.
+min_time <- min(coords_time_cc[, 3])
 coords_time_cc[, 3] <- coords_time_cc[, 3] - min_time
 summary(coords_time_cc)
 n_s <- nrow(unique(coords_time_cc[, 1:2]))
 seed <- 29092025
-ivae_radial3 <- iVAEar_radial(
+ivae_radial3 <- NonlinearBSS:::iVAEar_radial(
     as.matrix(data_all_cc), 
     as.matrix(coords_time_cc[, 1:2]), as.matrix(coords_time_cc[, 3]),
     latent_dim = 6,
@@ -66,10 +62,11 @@ mean(abs(preds_ivae[, 1] - EEA_sub_test2$mean_O3), na.rm = TRUE)
 step1_ahead_inds <- which(EEA_sub_test2$time_numeric < (min(EEA_sub_test2$time_numeric) + 1))
 ivae_mae1 <- mean(abs((as.matrix(preds_ivae[step1_ahead_inds, 1]) - EEA_sub_test2[step1_ahead_inds, "mean_O3"])), na.rm = TRUE)
 ivae_rmse1 <- sqrt(mean((as.matrix(preds_ivae[step1_ahead_inds, 1]) - EEA_sub_test2[step1_ahead_inds, "mean_O3"])^2, na.rm = TRUE))
-ivae_mae1
-ivae_rmse1
+
 step10_ahead_inds <- which(EEA_sub_test2$time_numeric < (min(EEA_sub_test2$time_numeric) + 10))
 ivae_mae10 <- mean(abs((as.matrix(preds_ivae[step10_ahead_inds, 1]) - EEA_sub_test2[step10_ahead_inds, "mean_O3"])), na.rm = TRUE)
 ivae_rmse10 <- sqrt(mean((as.matrix(preds_ivae[step10_ahead_inds, 1]) - EEA_sub_test2[step10_ahead_inds, "mean_O3"])^2, na.rm = TRUE))
-ivae_mae10
-ivae_rmse10
+print(paste0("iVAE MAE (1-step-ahead): ", ivae_mae1))
+print(paste0("iVAE RMSE (1-step-ahead): ", ivae_rmse1))
+print(paste0("iVAE MAE (10-steps-ahead): ", ivae_mae10))
+print(paste0("iVAE RMSE (10-steps-ahead): ", ivae_rmse10))

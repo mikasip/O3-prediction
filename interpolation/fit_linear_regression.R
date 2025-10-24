@@ -12,5 +12,5 @@ lm_fitted <- lm(mean_O3 ~ co + nh3 + no2 + no + o3 + pm10 + pm25 + so2 + voc + r
 pred_test <- predict(lm_fitted, newdata = EEA_sub_test2_aux)
 mae_lm <- mean(abs(pred_test - EEA_sub_test2_aux$mean_O3), na.rm = TRUE)
 rmse_lm <- sqrt(mean((pred_test - EEA_sub_test2_aux$mean_O3)^2, na.rm = TRUE))
-mae_lm
-rmse_lm
+print(paste0("Linear Regression MAE: ", mae_lm))
+print(paste0("Linear Regression RMSE: ", rmse_lm))

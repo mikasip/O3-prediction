@@ -146,5 +146,5 @@ pred_var_df_time <- as.data.frame(pred_var_time)
 pred_var_df_time <- pred_var_df_time[order(pred_var_df_time[, "sp.ID"]), ]
 mae_kriging <- mean(abs(EEA_sub_test2$mean_O3 - (pred_var_df_time$var1.pred + predict(mean_o3_fit, newdata = EEA_sub_test2))), na.rm = TRUE)
 rmse_kriging <- sqrt(mean((EEA_sub_test2$mean_O3 - (pred_var_df_time$var1.pred + predict(mean_o3_fit, newdata = EEA_sub_test2)))^2, na.rm = TRUE))
-mae_kriging
-rmse_kriging
+print(paste0("Kriging MAE: ", mae_kriging))
+print(paste0("Kriging RMSE: ", rmse_kriging))

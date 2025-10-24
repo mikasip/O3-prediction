@@ -4,10 +4,6 @@ library(NonlinearBSS)
 library(gstat)
 library(sp)
 library(spacetime)
-library(sf)
-library(covatest)
-library(dplyr)
-library(rdist)
 
 load("data/EEA_sub_val.RData")
 load("data/EEA_sub_test.RData")
@@ -70,7 +66,7 @@ histgnn_mae1 <- mean(abs(preds_ordered[seq(1, nrow(preds_ordered), by = 10), 1] 
 histgnn_mae10 <- mean(abs(preds_ordered[, 1] - test_data10[, "mean_O3"]), na.rm = TRUE)
 histgnn_rmse10 <- sqrt(mean((preds_ordered[, 1] - test_data10[, "mean_O3"])^2, na.rm = TRUE))
 histgnn_rmse1 <- sqrt(mean((preds_ordered[seq(1, nrow(preds_ordered), by = 10), 1] - test_data10[inds2, "mean_O3"])^2, na.rm = TRUE))
-histgnn_mae1
-histgnn_mae10
-histgnn_rmse1
-histgnn_rmse10
+print(paste0("HISTGNN MAE (1-step-ahead): ", histgnn_mae1))
+print(paste0("HISTGNN MAE (10-steps-ahead): ", histgnn_mae10))
+print(paste0("HISTGNN RMSE (1-step-ahead): ", histgnn_rmse1))
+print(paste0("HISTGNN RMSE (10-steps-ahead): ", histgnn_rmse10))

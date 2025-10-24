@@ -4,17 +4,13 @@ library(NonlinearBSS)
 library(gstat)
 library(sp)
 library(spacetime)
-library(sf)
-library(covatest)
-library(dplyr)
-library(rdist)
 
 var_names <- c("lai_hv", "lai_lv", "rh", "ssr", "t2m", "tp", "winddir", "windspeed")
 var_names_pollution <- c("co", "nh3", "no2", "no", "o3", "pm10", "pm25", "so2", "voc")
 
-load("../Italy_project/EEA_sub_val2_aux.RData")
-load("../Italy_project/EEA_sub_test2_aux.RData")
-load("../Italy_project/EEA_sub_train2_aux.RData")
+load("data/EEA_sub_val2_aux.RData")
+load("data/EEA_sub_test2_aux.RData")
+load("data/EEA_sub_train2_aux.RData")
 coordinates_train_latlon <- SpatialPoints(cbind(EEA_sub_train2_aux$Longitude, EEA_sub_train2_aux$Latitude),
                                    proj4string = CRS("+proj=longlat +datum=WGS84"))
 
@@ -71,11 +67,10 @@ preds2_ic <- predict_coords_to_IC(ivae_radial7, as.matrix(EEA_sub_test3[, c("X",
 preds_ivae <- predict(ivae_radial7, preds2_ic, IC_to_data = TRUE)
 
 # MAE
-mean(abs(preds_ivae[, 1] - EEA_sub_test3$mean_O3), na.rm = TRUE)
-mean(abs(preds_ivae[, 2] - EEA_sub_test3$mean_NO2), na.rm = TRUE)
-mean(abs(preds_ivae[, 3] - EEA_sub_test3$mean_PM10), na.rm = TRUE)
+ivae_mae <- mean(abs(preds_ivae[, 1] - EEA_sub_test3$mean_O3), na.rm = TRUE)
 
 # RMSE
-sqrt(mean((preds_ivae[, 1] - EEA_sub_test3$mean_O3)^2, na.rm = TRUE))
-sqrt(mean((preds_ivae[, 2] - EEA_sub_test3$mean_NO2)^2, na.rm = TRUE))
-sqrt(mean((preds_ivae[, 3] - EEA_sub_test3$mean_PM10)^2, na.rm = TRUE))
+ivae_rmse <- sqrt(mean((preds_ivae[, 1] - EEA_sub_test3$mean_O3)^2, na.rm = TRUE))
+
+print(paste0("iVAE MAE: ", ivae_mae))
+print(paste0("iVAE RMSE: ", ivae_rmse))
