@@ -4,6 +4,7 @@ library(NonlinearBSS)
 library(gstat)
 library(sp)
 library(spacetime)
+source("helpers.R")
 
 var_names <- c("lai_hv", "lai_lv", "rh", "ssr", "t2m", "tp", "winddir", "windspeed")
 var_names_pollution <- c("co", "nh3", "no2", "no", "o3", "pm10", "pm25", "so2", "voc")
@@ -11,15 +12,9 @@ var_names_pollution <- c("co", "nh3", "no2", "no", "o3", "pm10", "pm25", "so2", 
 load("data/EEA_sub_val2_aux.RData")
 load("data/EEA_sub_test2_aux.RData")
 load("data/EEA_sub_train2_aux.RData")
-coordinates_train_latlon <- SpatialPoints(cbind(EEA_sub_train2_aux$Longitude, EEA_sub_train2_aux$Latitude),
-                                   proj4string = CRS("+proj=longlat +datum=WGS84"))
-
-# Transform to UTM Zone 32N (best for Northern Italy)
-coordinates_train_utm <- spTransform(coordinates_train_latlon, CRS("+proj=utm +zone=32 +datum=WGS84 +units=m"))
-
-# Add X and Y columns to your dataframe
-EEA_sub_train2_aux$X <- coordinates(coordinates_train_utm)[,1]
-EEA_sub_train2_aux$Y <- coordinates(coordinates_train_utm)[,2]
+coords_train_utm <- to_utm(EEA_sub_train2_aux$Longitude, EEA_sub_train2_aux$Latitude)
+EEA_sub_train2_aux$X <- coords_train_utm[,1]
+EEA_sub_train2_aux$Y <- coords_train_utm[,2]
 
 aux_var_names <- c(var_names, var_names_pollution)
 na_inds <- which(!complete.cases(EEA_sub_train2_aux[, aux_var_names]))
@@ -31,6 +26,7 @@ min_time <- min(coords_time_cc[, 3])
 coords_time_cc[, 3] <- coords_time_cc[, 3] - min_time
 summary(coords_time_cc)
 seed <- 26062025
+t_fit_start <- proc.time()
 ivae_radial7 <- iVAE_radial_spatio_temporal(
     as.matrix(data_all_cc), 
     as.matrix(coords_time_cc[, 1:2]), as.matrix(coords_time_cc[, 3]),
@@ -48,16 +44,12 @@ ivae_radial7 <- iVAE_radial_spatio_temporal(
     lr_end = 0.0001,
     seed = seed
 )
+t_fit_end <- proc.time()
+print(paste0("iVAE aux fitting time (seconds): ", round(t_fit_end["elapsed"] - t_fit_start["elapsed"], 2)))
 
-coordinates_test_latlon <- SpatialPoints(cbind(EEA_sub_test2_aux$Longitude, EEA_sub_test2_aux$Latitude),
-                                   proj4string = CRS("+proj=longlat +datum=WGS84"))
-
-# Transform to UTM Zone 32N (best for Northern Italy)
-coordinates_test_utm <- spTransform(coordinates_test_latlon, CRS("+proj=utm +zone=32 +datum=WGS84 +units=m"))
-
-# Add X and Y columns to your dataframe
-EEA_sub_test2_aux$X <- coordinates(coordinates_test_utm)[,1]
-EEA_sub_test2_aux$Y <- coordinates(coordinates_test_utm)[,2]
+coords_test_utm <- to_utm(EEA_sub_test2_aux$Longitude, EEA_sub_test2_aux$Latitude)
+EEA_sub_test2_aux$X <- coords_test_utm[,1]
+EEA_sub_test2_aux$Y <- coords_test_utm[,2]
 
 na_inds <- which(is.na(EEA_sub_test2_aux$mean_O3) | !complete.cases(EEA_sub_test2_aux[, aux_var_names]))
 EEA_sub_test3 <- EEA_sub_test2_aux[-na_inds, ]

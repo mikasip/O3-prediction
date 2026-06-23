@@ -4,6 +4,7 @@ library(NonlinearBSS)
 library(gstat)
 library(sp)
 library(spacetime)
+source("helpers.R")
 
 load("data/EEA_sub_val.RData")
 load("data/EEA_sub_test.RData")
@@ -19,6 +20,7 @@ coords_time_cc[, 3] <- coords_time_cc[, 3] - min_time
 summary(coords_time_cc)
 n_s <- nrow(unique(coords_time_cc[, 1:2]))
 seed <- 29092025
+t_fit_start <- proc.time()
 ivae_radial3 <- NonlinearBSS:::iVAEar_radial(
     as.matrix(data_all_cc), 
     as.matrix(coords_time_cc[, 1:2]), as.matrix(coords_time_cc[, 3]),
@@ -35,28 +37,29 @@ ivae_radial3 <- NonlinearBSS:::iVAEar_radial(
     batch_size = 64,
     seed = seed
 )
+t_fit_end <- proc.time()
+print(paste0("Fitting time (seconds): ", round(t_fit_end["elapsed"] - t_fit_start["elapsed"], 2)))
 
-# Transform lat lon coords to X and Y:
-coordinates_val_latlon <- SpatialPoints(cbind(EEA_sub_test$Longitude, EEA_sub_test$Latitude),
-                                   proj4string = CRS("+proj=longlat +datum=WGS84"))
-
-# Transform to UTM Zone 32N (best for Northern Italy)
-coordinates_val_utm <- spTransform(coordinates_val_latlon, CRS("+proj=utm +zone=32 +datum=WGS84 +units=m"))
-
-# Add X and Y columns to your dataframe
-EEA_sub_test$X <- coordinates(coordinates_val_utm)[,1]
-EEA_sub_test$Y <- coordinates(coordinates_val_utm)[,2]
+utm_test_coords <- to_utm(EEA_sub_test$Longitude, EEA_sub_test$Latitude)
+EEA_sub_test$X <- utm_test_coords[,1]
+EEA_sub_test$Y <- utm_test_coords[,2]
 
 EEA_sub_test2 <- EEA_sub_test[!(EEA_sub_test$AirQualityStation %in% na_stations), ]
+# Restrict inference to first 10 time steps of test data
+first10_cut <- min(EEA_sub_test$time_numeric) + 10
+EEA_sub_test2 <- EEA_sub_test2[EEA_sub_test2$time_numeric < first10_cut, ]
 
 ar_order <- 3
 max_time <- max(coords_time_cc[, 3])
 last_coords_time <- as.matrix(coords_time_cc[which(coords_time_cc[, 3] %in% ((max_time - (ar_order - 1)):max_time)), ])
+t_inference_start <- proc.time()
 st_ar1_test_time <- predict_coords_to_IC_ar(ivae_radial3, last_coords_time[, 1:2], last_coords_time[, 3], NULL, 
     as.matrix(EEA_sub_test2[, c("X", "Y")]), (EEA_sub_test2[, "time_numeric"] - min_time), NULL, get_trend = TRUE, get_ar_coefs = TRUE)
 preds_ic_ivae <- st_ar1_test_time$preds
 
 preds_ivae <- predict(ivae_radial3, preds_ic_ivae, IC_to_data = TRUE)
+t_inference_end <- proc.time()
+print(paste0("Inference time (seconds): ", round(t_inference_end["elapsed"] - t_inference_start["elapsed"], 2)))
 mean(abs(preds_ivae[, 1] - EEA_sub_test2$mean_O3), na.rm = TRUE)
 
 step1_ahead_inds <- which(EEA_sub_test2$time_numeric < (min(EEA_sub_test2$time_numeric) + 1))
@@ -70,3 +73,9 @@ print(paste0("iVAE MAE (1-step-ahead): ", ivae_mae1))
 print(paste0("iVAE RMSE (1-step-ahead): ", ivae_rmse1))
 print(paste0("iVAE MAE (10-steps-ahead): ", ivae_mae10))
 print(paste0("iVAE RMSE (10-steps-ahead): ", ivae_rmse10))
+bootstrap_results_1 <- bootstrap_errors(preds_ivae[step1_ahead_inds, 1], EEA_sub_test2[step1_ahead_inds, "mean_O3"], n_bootstrap = 1000, seed = seed)
+bootstrap_results_10 <- bootstrap_errors(preds_ivae[step10_ahead_inds, 1], EEA_sub_test2[step10_ahead_inds, "mean_O3"], n_bootstrap = 1000, seed = seed)
+print("Bootstrap results (iVAE-AR 1-step-ahead):")
+print(bootstrap_results_1)
+print("Bootstrap results (iVAE-AR 10-steps-ahead):")
+print(bootstrap_results_10)

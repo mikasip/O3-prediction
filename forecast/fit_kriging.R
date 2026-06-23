@@ -2,6 +2,8 @@ library(gstat)
 library(sp)
 library(spacetime)
 library(sf)
+library(dplyr)
+source("helpers.R")
 
 fit_product_sum <- function(vv, res_var, verbose = FALSE, init_t_range = 10, init_s_range = 10000, init_t_sill = 1, init_s_sill = 1) {
     # Temporal variogram estimation
@@ -99,15 +101,9 @@ load("data/EEA_sub_val.RData")
 load("data/EEA_sub_test.RData")
 load("data/EEA_sub_train_val_aux_interpolated_ivae.RData")
 
-coordinates_test_latlon <- SpatialPoints(cbind(EEA_sub_test$Longitude, EEA_sub_test$Latitude),
-                                   proj4string = CRS("+proj=longlat +datum=WGS84"))
-
-# Transform to UTM Zone 32N (best for Northern Italy)
-coordinates_test_utm <- spTransform(coordinates_test_latlon, CRS("+proj=utm +zone=32 +datum=WGS84 +units=m"))
-
-# Add X and Y columns to your dataframe
-EEA_sub_test$X <- coordinates(coordinates_test_utm)[,1]
-EEA_sub_test$Y <- coordinates(coordinates_test_utm)[,2]
+utm_test_coords <- to_utm(EEA_sub_test$Longitude, EEA_sub_test$Latitude)
+EEA_sub_test$X <- utm_test_coords[,1]
+EEA_sub_test$Y <- utm_test_coords[,2]
 
 temp_df_train <- EEA_sub_aux_train_interpolated_ivae
 na_stations <- unique(temp_df_train$AirQualityStation[is.na(temp_df_train$mean_O3)])
@@ -117,6 +113,9 @@ n_s <- length(unique(temp_df_train$AirQualityStation))
 n_t <- length(unique(temp_df_train$time_numeric))
 n_s * n_t
 temp_df_test <- EEA_sub_test
+# Restrict kriging inference to first 10 time steps
+first10_cut <- min(EEA_sub_test$time_numeric) + 10
+temp_df_test <- temp_df_test[temp_df_test$time_numeric < first10_cut, ]
 var <- "mean_O3"
 xc <- cos(2 * pi * temp_df_train$time_numeric / 365)
 xs <- sin(2 * pi * temp_df_train$time_numeric / 365)
@@ -147,18 +146,26 @@ min_time <- min(temp_df_train$time_numeric)
 var_df <- temp_df_train[, c("AirQualityStation", "X", "Y", "time_numeric", "time", "mean_O3_res")]
 stfdf_data <- create_st_dataset(var_df, c("mean_O3_res"), length.out = n_t)
 summary(stfdf_data)
+t_fit_start <- proc.time()
 vv_var <- variogramST(mean_O3_res ~ 1, stfdf_data, tlags = 0:20, cutoff = 100000)
 vv_var[1, 2:3] <- 0
 plot(vv_var, wireframe = TRUE, main = "mean_O3_res")
 var_res <- var(stfdf_data[, , "mean_O3_res"]@data[[1]], na.rm = TRUE)
 vg_obj <- fit_product_sum(vv_var, var_res, verbose = TRUE, init_t_sill = var_res, init_s_sill = var_res)
+t_fit_end <- proc.time()
+print(paste0("Kriging fitting time (seconds): ", round(t_fit_end["elapsed"] - t_fit_start["elapsed"], 2)))
 
+first10_cut <- min(temp_df_test$time_numeric) + 10
+temp_df_test <- temp_df_test[temp_df_test$time_numeric < first10_cut, ]
 stfdf_pred <- create_sti_dataset(temp_df_test, "mean_O3_res")
+t_inference_start <- proc.time()
 pred_var_time <- krigeST(mean_O3_res ~ 1,
     data = stfdf_data,
     newdata = stfdf_pred, vg_obj$vgm_st, nmax = 200,
     stAni = 10000 / 8,
 )
+t_inference_end <- proc.time()
+print(paste0("Kriging inference time (seconds): ", round(t_inference_end["elapsed"] - t_inference_start["elapsed"], 2)))
 pred_var_df_time <- as.data.frame(pred_var_time)
 head(pred_var_df_time)
 pred_var_df_time <- pred_var_df_time[order(pred_var_df_time[, "sp.ID"]), ]
@@ -175,4 +182,9 @@ print(paste0("Kriging MAE (1-step-ahead): ", kriging_mae1))
 print(paste0("Kriging RMSE (1-step-ahead): ", kriging_rmse1))
 print(paste0("Kriging MAE (10-steps-ahead): ", kriging_mae10))
 print(paste0("Kriging RMSE (10-steps-ahead): ", kriging_rmse10))
-# 6.86, 11.23
+bootstrap_results_1 <- bootstrap_errors(pred_var_df_time[step1_ahead_inds, "var1.pred"], temp_df_test[step1_ahead_inds, "mean_O3_res"], n_bootstrap = 1000, seed = 29092025)
+bootstrap_results_10 <- bootstrap_errors(pred_var_df_time[step10_ahead_inds, "var1.pred"], temp_df_test[step10_ahead_inds, "mean_O3_res"], n_bootstrap = 1000, seed = 29092025)
+print("Bootstrap results (Kriging 1-step-ahead):")
+print(bootstrap_results_1)
+print("Bootstrap results (Kriging 10-steps-ahead):")
+print(bootstrap_results_10)

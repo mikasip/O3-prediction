@@ -2,6 +2,7 @@ library(gstat)
 library(sp)
 library(spacetime)
 library(sf)
+source("helpers.R")
 
 fit_product_sum <- function(vv, res_var, verbose = FALSE, init_t_range = 10, init_s_range = 10000, init_t_sill = 1, init_s_sill = 1) {
     # Temporal variogram estimation
@@ -109,15 +110,13 @@ EEA_sub_train2 <- EEA_sub_train_aux
 EEA_sub_train2[val_inds, "mean_O3"] <- NA
 EEA_sub_train2[test_inds, "mean_O3"] <- NA
 
-coordinates_latlon <- SpatialPoints(cbind(EEA_sub_train2$Longitude, EEA_sub_train2$Latitude),
-                                   proj4string = CRS("+proj=longlat +datum=WGS84"))
-# Transform to UTM Zone 32N (best for Northern Italy)
-coordinates_utm <- spTransform(coordinates_latlon, CRS("+proj=utm +zone=32 +datum=WGS84 +units=m"))
-EEA_sub_train2$X <- coordinates(coordinates_utm)[,1]
-EEA_sub_train2$Y <- coordinates(coordinates_utm)[,2]
+coords_train_utm <- to_utm(EEA_sub_train2$Longitude, EEA_sub_train2$Latitude)
+EEA_sub_train2$X <- coords_train_utm[,1]
+EEA_sub_train2$Y <- coords_train_utm[,2]
 
 all(na.omit(EEA_sub_train2_aux$mean_O3) == na.omit(EEA_sub_train2$mean_O3))
 
+t_fit_start <- proc.time()
 mean_o3_fit <- lm(mean_O3 ~ co + nh3 + no2 + no + o3 + pm10 + pm25 + so2 + voc + rh + ssr + lai_lv + lai_hv + t2m + tp + winddir + windspeed, data = EEA_sub_train2)
 EEA_sub_train2$mean_O3_res <- EEA_sub_train2$mean_O3 - predict(mean_o3_fit, newdata = EEA_sub_train2)
 EEA_sub_test2$mean_O3_res <- EEA_sub_test2$mean_O3 - predict(mean_o3_fit, newdata = EEA_sub_test2)
@@ -133,18 +132,33 @@ plot(vv_var, wireframe = TRUE, main = "mean_O3_res")
 var_res <- var(stfdf_data[, , "mean_O3_res"]@data[[1]], na.rm = TRUE)
 sepindex(vario_st = vv_var, nt = 21, ns = 8, globalSill = var_res)
 vg_obj <- fit_product_sum(vv_var, var_res, verbose = TRUE, init_t_sill = var_res, init_s_sill = var_res)
+t_fit_end <- proc.time()
+print(paste0("Regression+Kriging fitting time (seconds): ", round(t_fit_end["elapsed"] - t_fit_start["elapsed"], 2)))
 
 EEA_sub_test2 <- EEA_sub_test2[!is.na(EEA_sub_test2$mean_O3_res), ]
 
 stfdf_validation <- create_sti_dataset(EEA_sub_test2, "mean_O3_res")
+t_inference_start <- proc.time()
 pred_var_time <- krigeST(mean_O3_res ~ 1,
     data = stfdf_data,
     newdata = stfdf_validation, vg_obj$vgm_st, nmax = 200,
     stAni = 10000 / 4,
 )
+predictions_trend <- predict(mean_o3_fit, newdata = EEA_sub_test2)
+t_inference_end <- proc.time()
+print(paste0("Regression+Kriging inference time (seconds): ", round(t_inference_end["elapsed"] - t_inference_start["elapsed"], 2)))
 pred_var_df_time <- as.data.frame(pred_var_time)
 pred_var_df_time <- pred_var_df_time[order(pred_var_df_time[, "sp.ID"]), ]
-mae_kriging <- mean(abs(EEA_sub_test2$mean_O3 - (pred_var_df_time$var1.pred + predict(mean_o3_fit, newdata = EEA_sub_test2))), na.rm = TRUE)
-rmse_kriging <- sqrt(mean((EEA_sub_test2$mean_O3 - (pred_var_df_time$var1.pred + predict(mean_o3_fit, newdata = EEA_sub_test2)))^2, na.rm = TRUE))
+combined_preds <- pred_var_df_time$var1.pred + predictions_trend
+mae_kriging <- mean(abs(EEA_sub_test2$mean_O3 - combined_preds), na.rm = TRUE)
+rmse_kriging <- sqrt(mean((EEA_sub_test2$mean_O3 - combined_preds)^2, na.rm = TRUE))
 print(paste0("Kriging MAE: ", mae_kriging))
 print(paste0("Kriging RMSE: ", rmse_kriging))
+inds1 <- which(EEA_sub_test2$time_numeric < (min(EEA_sub_test2$time_numeric) + 1))
+inds10 <- which(EEA_sub_test2$time_numeric < (min(EEA_sub_test2$time_numeric) + 10))
+bootstrap_results_1 <- bootstrap_errors(combined_preds[inds1], EEA_sub_test2$mean_O3[inds1], n_bootstrap = 1000, seed = 29092025)
+bootstrap_results_10 <- bootstrap_errors(combined_preds[inds10], EEA_sub_test2$mean_O3[inds10], n_bootstrap = 1000, seed = 29092025)
+print("Bootstrap results (Regression+Kriging 1-step-ahead):")
+print(bootstrap_results_1)
+print("Bootstrap results (Regression+Kriging 10-steps-ahead):")
+print(bootstrap_results_10)
